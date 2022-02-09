@@ -1,0 +1,52 @@
+构建DHCP服务
+（一）、安装DHCP服务器软件  (rpm  方式安装)
+mkdir  /media/cdrom   （创建挂载目录）
+mount /dev/cdrom /media/cdrom   （挂载光盘）
+cd /media/cdrom/Packages/   （进入安装包位置）
+rpm -ivh dhcp-4.2.5-58.el7.centos.x86_64.rpm  （安装）
+
+（二）、构建主配置文件 (管理员手动创建，也可从模板文件进行参考)
+主配置文件： /etc/dhcp/dhcpd.conf  （该文件不包含有效配置）
+文件范本： /usr/share/doc/dhcp*/dhcpd.conf.example
+将范本文件覆盖主配置文件：
+cp /usr/share/doc/dhcp-4.2.5/dhcpd.conf.example  /etc/dhcp/dhcpd.conf
+
+修改主配置文件： 
+主配置文件的构成：
+1、声明： 描述DHCP服务器的布局；subnet 参数用来声明网段； host 参数用来声明主机
+2、选项： 由“option” 进行引导，后面跟配置关键字和对应的值；以“；”结束
+3、参数： 由关键字和对应的值构成，以“；” 结束
+
+案例修改：  vim  /etc/dhcp/dhcpd.conf 
+option domain-name  "123.com";    (默认的搜索域，可以直接保留，全局配置，对整个DHCP都生效)
+option domain-name-servers  8.8.8.8，202.106.0.20； （默认所分配的DNS服务器地址，全局配置，对整个DHCP服务器都生效）
+default-lease-time 600;  （默认租约时间，单位是秒） (可以根据不同情况进行修改)
+max-lease-time 7200;   （最大租约时间，也可修改） （以上都属于全局配置对整个DHCP服务器都生效）
+subnet 192.168.200.0 netmask 255.255.255.0 {                   （声明网段、掩码）
+       range 192.168.200.100 192.168.200.150;                  （分配的地址池）
+       option routers 192.168.200.254;                          （分配的网关）
+}
+保存退出
+启动dhcpd 服务，并查看监听端口
+systemctl start dhcpd   （启动服务）
+netstat -anpu | grep "67"  （查看服务是否正常；DHCP 服务默认监听UDP 67 号端口）
+
+（三）、验证 
+开启客户端，网卡设置为自动获取，验证发现客户端能够获取相应的地址、网关、DNS
+
+（四）、主机声明 （实现特定的主机获取到固定的地址、网关、DNS信息）（相当于Windows 上的保留选项）
+host cent7-4 {                                    （主机声明）
+     hardware ethernet 00:0C:29:32:b6:e1;            （声明主机的MAC地址）
+     fixed-address 192.168.200.188;                  （分配的IP）
+     option routers 192.168.200.222;                   （分配的网关）
+     option  domain-name-servers 114.114.114.114;             （分配的DNS）
+}
+保存退出
+重启服务： systemctl start dhcpd
+重新验证客户机：发现被声明客户机获取相应的地址参数
+
+（四）、客户端配置
+dhclient  -d   接口名称   （完整的看到客户机获取地址的过程） ； Ctrl + C终止
+dhclient  -r  接口名称  （释放该地址）
+
+服务器上查看地址租约的文件：  less  /var/lib/dhcpd/dhcpd.leases
