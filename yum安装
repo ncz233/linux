@@ -1,0 +1,16 @@
+Yum 仓库  
+rpm   安装
+编译 安装
+yum  安装  （自动解决软件的依赖性关系；利用rpm 包进行安装） （本地的yum 仓库，利用的是光盘）
+1、创建光盘的挂载目录  mkdir  /media/cdrom
+2、挂载光盘： mount /dev/cdrom /media/cdrom
+3、进入yum仓库所在的目录：   cd /etc/yum.repos.d/     （该目录下默认存在仓库文件）
+4、删除这些仓库文件：  rm  -rf   *(也可以备份一份)
+5、自己创建yum 仓库文件：vim centOS7.repo
+    添加：  
+[aaa]     （仓库名字）
+name=这是一个C7 的yum    （仓库的描述信息）
+baseurl=file:///media/cdrom     （仓库依赖的文件位置，所挂载的光盘）
+enabled=1                                   （启用该yum 仓库）
+gpgcheck=0                                  （不检查秘钥）
+保存退出
