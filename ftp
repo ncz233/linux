@@ -1,0 +1,156 @@
+一）、准备工作：
+3 台机器
+
+Linux 主机    FTP 服务器   192.168.10.10  （关防火墙、关Selinux、配置静态地址）
+
+Linux  主机   clinet1      192.168.10.20   （关防火墙、关Selinux、配置静态地址）
+
+windows 7     client2       192.168.10.30    (配地址）
+
+（二）、装软件
+
+FTP 服务器   装 vsftpd 软件                            [root@localhost Packages]# rpm -ivh vsftpd-2.2.2-11.el6.i686.rpm 
+
+client1      装 ftp 命令行软件    （通过挂载光盘）      [root@localhost Packages]# rpm -ivh ftp-0.17-53.el6.i686.rpm 
+
+
+（三）、准备FTP的根目录 
+默认的根目录： /var/ftp    (安装完 vsftpd 软件后默认就有了）
+注意： FTP的根目录默认是不允许匿名账户拥有写入的权限 （本身保证安全）
+
+
+案例一： 匿名访问FTP 服务器 （FTP的根目录是 /TSZ235 ,该目录下有a.txt 和b.txt 两个文件，实现匿名用户可以访问，并且能够上传）
+
+1、创建根目录和文件：  
+[root@localhost var]# mkdir /TSZ235
+[root@localhost var]# cd /TSZ235/
+[root@localhost TSZ235]# vim a.txt
+[root@localhost TSZ235]# vim b.txt
+
+2、修改配置文件  （默认配置文件位置： /etc/vsftpd/vsftpd.conf)
+
+anonymous_enable=YES   (启用匿名访问）
+local_enable=NO        （禁用本地用户访问）
+anon_root=/TSZ235       （设置匿名账户的FTP根目录）
+设置完后，其他配置文件不做修改，已经能够实现匿名登录
+启动服务：  [root@localhost TSZ235]# service vsftpd start
+验证： 得出结论： 匿名账户能够登录并且能够下载文件，而不能上传
+
+3、实现匿名上传：（修改配置文件）
+write_enable=YES   （启用FTP服务器任何形式的写入权限）
+anon_umask=022    （设置匿名用户上传文件的权限掩码）
+anon_upload_enable=YES  （允许匿名用户上传）
+anon_mkdir_write_enable=YES  （允许匿名账户创建目录）
+保存退出，重启 vsftpd  服务
+注意：FTP的根目录默认是不允许匿名账户拥有写入的权限 （如果想实现对匿名账户拥有上传、写入的权限，需要在FTP的根目录下新建一个目录，并给该目录 777 的权限，这时匿名账户就能够在FTP 根目录下的新创建的目录中实现上传文件）
+
+扩展：如果想实现删除、重命名还需要修改配置文件：
+anon_other_write_enable=YES  （开放匿名账户的其他权限： 删除、重命名等）
+
+保存退出
+注意： 删除重命名也只能对FTP根目录下的子目录生效，不能直接对FTP根目录生效
+
+
+案例二： 本地用户验证的FTP 服务器搭建 （系统中存在userA 和userB，FTP的根目录是/TSZ235,该目录下存在2个文件 a.txt 和 b.txt；实现userA 和 user B 能够访问FTP 服务器，并拥有写入的权限）
+1、创建账户，并设置密码
+[root@localhost abc]# useradd userA
+[root@localhost abc]# useradd userB
+[root@localhost abc]# passwd userA
+[root@localhost abc]# passwd userB
+
+2、修改配置文件
+
+local_enable=YES  （允许本地用户访问FTP服务器）
+local_root=/TSZ235 （本地用户访问ftp 服务器的根目录）
+write_enable=YES    （开放任何形式的写入权限）
+local_umask=022      （本地用户所上传权限的掩码）
+保存退出 
+注意：如果希望本地账户能够写入，那必须给根目录/TSZ235 写入的权限
+chmod  777  /TSZ235
+
+扩展： 希望userA 能够访问，而userB 不能访问
+
+引出2个用户列表文件：  位置在/etc/vsftpd 下
+ftpusers  ： 只要在该文件中的账户，是不允许访问FTP 服务器的  （黑名单）
+
+user_list ： 该文件也是放用户的，该文件是否生效有主配置文件决定； 当主配置文件中 userlist_enable= YES ,说明该用户列表生效； userlist_deny=YES ;用户列表中的账户禁止访问FTP； 当userlist_deny=NO ;表示仅允许列表中的用户登录
+
+
+基于虚拟账户的FTP服务
+作用：将FTP登录的账户与系统登录的账户区分开，用户名密码都不相同，进一步增强FTP服务器的安全性。
+
+案例要求： 搭建主目录是 /TSZ235 的FTP服务器，创建两个虚拟账户aaa 和 bbb；aaa 具有读取的权限；而bbb 拥有读取和写入的权限
+
+实验步骤： 
+一、环境准备 （已经完成）
+1、IP地址   2、SElinux  是否关闭   3、防火墙是否关闭    4、主机名是否修改    5、yum  仓库是否准备完毕，光盘是否挂载
+
+二、安装vsftpd 软件并创建FTP的根目录 （步骤略）
+yum    -y   install    vsftpd
+
+mkdir   /TSZ275    (创建完目录后，同时在该目录下创建了2 个测试文件）
+
+
+
+三、准备虚拟用户的账户数据库
+注意：vsftpd服务使用：Berkeley  DB 格式的数据库文件来存放虚拟用户账户 （建立这种数据库文件需要使用db_load 工具转换 （该工具默认已经安装）
+1、要创建文本格式的用户名、密码信息  （在/etc/vsftpd/ 下创建）
+vim   vusers.list 
+输入：  
+aaa
+123
+bbb
+456
+保存退出   （注意：奇数行是用户名，偶数行是上一行中用户对应的密码）
+
+2、把刚刚创建的用户名、密码的文本文件转换为Brekeley DB 格式的数据库文件
+[root@localhost vsftpd]# db_load -T -t hash -f vusers.list vusers.db   
+
+注意： 为了保证虚拟用户账户文件的安全，将其权限设置为600 
+[root@localhost vsftpd]# chmod 600 /etc/vsftpd/vusers.*
+
+3、添加虚拟账户的映射账户，并创建FTP的根目录
+[root@localhost vsftpd]# useradd -d /TSZ275 -s /sbin/nologin  xuni   （创建一个名字是xuni，主目录是/TSZ235 ,且不让登录系统的账户）
+
+[root@localhost TSZ235]# chmod 755 /TSZ275  （调整主目录的权限）
+
+四、为vsftpd 服务添加虚拟用户支持
+用户认证： 通过PAM 机制实现
+1、为虚拟用户建立PAM认证文件
+注意： vsftpd 服务的默认PAM 认证位于 /etc/pam.d/vsftpd (如果要读取虚拟用户的数据文件，需要创建新的PAM认证配置）
+先给旧配置文件备份一下：   cd  /etc/pam.d
+                                            mv   vsftpd    vsftpd.bak
+创建新认证文件：  vim   /etc/pam.d/vsftpd
+#%PAM-1.0
+auth  required  pam_userdb.so db=/etc/vsftpd/vusers
+account  required pam_userdb.so db=/etc/vsftpd/vusers
+保存退出
+
+2、修改主配置文件，添加虚拟用户支持
+vim  /etc/vsftpd/vsftpd.conf
+local_root=/TSZ275  (重新指定根目录）
+
+local_enable=YES  (因为虚拟账户映射的是本地账户，所以启动本地账户访问）
+write_enable=YES   （开启任何形式的写入权限）
+anon_umask=022      （设置上传权限掩码，虚拟用户默认是作为匿名用户进行处理降低权限）
+guest_enable=YES     （启用用户的映射功能）
+guest_username=xuni   （指定映射的用户名，前面已经创建了）
+pam_service_name=vsftpd （指定新的认证文件，认证文件前面已经创建）
+保存退出
+启动vsftpd 服务 发现aaa 和 bbb 已经能够正常登录，aaa 和 bbb 的权限相同，都只有读取的权限；
+
+扩展： 为不同的虚拟用户创建不同的权限 （实现关键点： 为不同的虚拟用户创建不同的配置文件）
+1、修改主配置文件，添加：
+user_config_dir=/etc/vsftpd/vusers_dir  （用户将从 /etc/vsftpd/vusers_dir 这个目录中查找自己的配置文件）
+
+2、在/etc/vsftpd/vusers_dir 这个目录中分别为aaa 和bbb 创建独立的配置文件
+mkdir   /etc/vsftpd/vusers_dir  (该目录一定要和主配置文件中同名）
+
+cd /etc/vsftpd/vusers_dir 
+ vim   aaa  (创建一个空文件）
+vim   bbb
+写入： anon_upload_enable=YES
+      anon_mkdir_write_enable=YES
+保存退出
+
+然后按照匿名用户来访问，这个虚拟用户就是映射本地用户来达到匿名访问
