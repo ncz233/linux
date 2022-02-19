@@ -1,0 +1,76 @@
+环境： 
+1、  CentOS 7   机器     192.168.10.112      DNS 服务器  （能够正向解析benet.com  和  反向解析）
+2、Win   7    测试机       192.168.10.10
+
+步骤：
+1、改主机名、关防火墙、关SElinux ，配置好地址，配置好yum 源
+2、安装  bind  软件     yum   -y   install   bind
+3、修改主配置文件内容：
+vim     /etc/named.conf
+修改：  listen-on port 53 { 192.168.10.112; };      （监听地址改为本机地址）
+修改：  allow-query     { any; };                                （任何人可用该DNS）
+
+添加 ：
+zone  "benet.com" IN  {
+       type  master;
+       file "benet.ca";
+};                                                              （正向解析的区域配置）
+
+zone "10.168.192.in-addr.arpa" IN {
+     type master;
+    file "ca.benet";
+};                                                               （反向解析的区域配置）
+
+保存退出
+
+4、修改区域配置文件
+cd     /var/named       (区域配置文件所在的位置）
+
+[root@DNS named]# cp named.localhost  benet.ca
+[root@DNS named]# cp named.localhost  ca.benet       (复制模板文件命名为区域配置文件的名字）
+
+修改区域配置文件：
+vim    benet.ca  
+
+$TTL 1D
+@       IN SOA  benet.com. admin.benet.com. (
+                                        2021092401      ; serial
+                                        1D      ; refresh
+                                        1H      ; retry
+                                        1W      ; expire
+                                        3H )    ; minimum
+        NS      www.benet.com.
+        MX  10  admin.benet.com.
+www     IN   A   192.168.10.88
+admin   IN   A   192.168.10.99
+aaa     IN   A   192.168.10.66
+保存退出
+
+vim   ca.benet
+
+$TTL 1D
+@       IN SOA  benet.com. admin.benet.com. (
+                                        2021092401      ; serial
+                                        1D      ; refresh
+                                        1H      ; retry
+                                        1W      ; expire
+                                        3H )    ; minimum
+        NS      www.benet.com.
+        MX  10  admin.benet.com.
+88    IN  PTR   www.benet.com.
+99    IN  PTR   admin.benet.com.
+66    IN  PTR   aaa.benet.com.
+
+保存退出
+
+5、修改区域配置文件的属主和属组
+[root@DNS named]# chown named:named benet.ca 
+[root@DNS named]# chown named:named ca.benet 
+
+6、启动named服务
+
+7、测试机器上验证成功
+
+
+
+
